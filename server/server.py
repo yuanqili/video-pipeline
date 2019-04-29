@@ -7,7 +7,7 @@ async def image_recv_handler(websocket, path):
     counter = 0
     while True:
         counter += 1
-        message = await websocket.recv()
+        message = await websocket.recv()  # The websocket call to receive image
         await image_write(message, counter)
 
 

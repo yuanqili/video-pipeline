@@ -49,7 +49,7 @@ async def framer(url, video_path, output_path, quality, processor):
             # Sends the processed image to the server
             with open(filename, 'rb') as f:
                 bits = f.read()
-                await websocket.send(bits)
+                await websocket.send(bits)  # The websocket call to send image
 
         # Closes
         progress_bar.close()
@@ -74,6 +74,6 @@ if __name__ == '__main__':
     asyncio.get_event_loop().run_until_complete(
         framer(url=build_url(netloc='localhost', port=8765),
                video_path='./data/video.mp4',
-               output_path='./data/video-frames/',
+               output_path='./data/video-frames',
                quality=95,
                processor=grayscale))
