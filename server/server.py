@@ -12,9 +12,17 @@ async def image_recv_handler(websocket, path):
 
 
 async def image_write(message, counter):
-    print(f'[{datetime.datetime.now()}] received message')
-    with open(f'image-recv-{counter}.jpg', 'wb') as f:
-        f.write(message)
+    filename, payload = decode_message(message)
+    print(f'[{datetime.datetime.now()}] received image: {filename}')
+    with open(filename, 'wb') as f:
+        f.write(payload)
+
+
+def decode_message(message):
+    header_size = int.from_bytes(message[:2], byteorder='big')
+    header = message[2:header_size+2].decode('utf-8')
+    payload = message[header_size+2:]
+    return header, payload
 
 
 if __name__ == '__main__':

@@ -35,7 +35,7 @@ async def framer(url, video_path, output_path, quality, processor):
         progress_bar = tqdm(total=frame_count, ncols=80)
 
         # Processes each frame
-        for index in range(1, frame_count+1):
+        for index in range(1, 10):
             ret, frame = cap.read()
             if not ret:
                 break
@@ -43,18 +43,37 @@ async def framer(url, video_path, output_path, quality, processor):
 
             # Process the frame, using the given `processor`, writes to file
             processed_frame = processor(frame)
-            filename = f'{output_path}/image-gen-{index}.jpg'
+            filename = f'{output_path}/image{index}.jpg'
             cv2.imwrite(filename, processed_frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
 
             # Sends the processed image to the server
             with open(filename, 'rb') as f:
                 bits = f.read()
-                await websocket.send(bits)  # The websocket call to send image
+                message = encode_message(f'image{index}.jpg', bits)
+                await websocket.send(message)  # The websocket call to send image
 
         # Closes
         progress_bar.close()
         cap.release()
         cv2.destroyAllWindows()
+
+
+def encode_message(filename, bits):
+    """
+    Generates a websocket message. The first two bytes are header size `s`,
+    followed by `s` bytes as header, and the rest bytes are message payload.
+
+    Args:
+        filename: Image name.
+        bits: Image binary bytes.
+
+    Returns:
+        An encoded message.
+    """
+    size = len(filename).to_bytes(2, byteorder='big')
+    header = filename.encode('ascii')
+    message = size + header + bits
+    return message
 
 
 def grayscale(frame):
