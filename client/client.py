@@ -35,7 +35,7 @@ async def framer(url, video_path, output_path, quality, processor):
         progress_bar = tqdm(total=frame_count, ncols=80)
 
         # Processes each frame
-        for index in range(1, 10):
+        for index in range(1, 20+1):
             ret, frame = cap.read()
             if not ret:
                 break
@@ -91,8 +91,8 @@ def grayscale(frame):
 
 if __name__ == '__main__':
     asyncio.get_event_loop().run_until_complete(
-        framer(url=build_url(netloc='localhost', port=8765),
+        framer(url=build_url(netloc='192.168.1.108', port=12314, path='/upload'),
                video_path='./data/video.mp4',
                output_path='./data/video-frames',
-               quality=95,
+               quality=55,
                processor=grayscale))
