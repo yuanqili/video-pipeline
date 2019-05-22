@@ -1,4 +1,5 @@
 import asyncio
+import json
 from urllib.parse import urlunparse
 
 import cv2
@@ -13,7 +14,7 @@ def build_url(netloc, port, scheme='ws', path='', params='', query='', fragment=
     return urlunparse((scheme, f'{netloc}:{port}', path, params, query, fragment))
 
 
-async def framer(url, video_path, output_path, quality, processor):
+async def framer(url, video_path, output_path, quality=95, processor=None, frame_limit=0):
     """
     Processes a video at `video_path` frame by frame, using `processor`, then
     sends processed frames via a websocket to the other side.
@@ -32,24 +33,29 @@ async def framer(url, video_path, output_path, quality, processor):
         # Opens the video at `video_path`
         cap = cv2.VideoCapture(video_path)
         frame_count = int(cv2.VideoCapture.get(cap, int(cv2.CAP_PROP_FRAME_COUNT)))
+        if frame_limit != 0:
+            frame_count = min(frame_count, frame_limit)
         progress_bar = tqdm(total=frame_count, ncols=80)
 
         # Processes each frame
-        for index in range(1, 20+1):
+        for index in range(1, frame_count+1):
             ret, frame = cap.read()
             if not ret:
                 break
             progress_bar.update()
 
             # Process the frame, using the given `processor`, writes to file
-            processed_frame = processor(frame)
+            if processor:
+                processed_frame = processor(frame)
+            else:
+                processed_frame = frame
             filename = f'{output_path}/image{index}.jpg'
             cv2.imwrite(filename, processed_frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
 
             # Sends the processed image to the server
             with open(filename, 'rb') as f:
                 bits = f.read()
-                message = encode_message(f'image{index}.jpg', bits)
+                message = encode_message_image(filename=f'{index}.jpg', image=bits)
                 await websocket.send(message)  # The websocket call to send image
 
         # Closes
@@ -57,22 +63,36 @@ async def framer(url, video_path, output_path, quality, processor):
         cap.release()
         cv2.destroyAllWindows()
 
+        # Sends an `finish` message
+        message = encode_message_control(done=True, group='gt')
+        await websocket.send(message)
 
-def encode_message(filename, bits):
+
+def encode_message_image(filename, image):
     """
     Generates a websocket message. The first two bytes are header size `s`,
     followed by `s` bytes as header, and the rest bytes are message payload.
 
     Args:
         filename: Image name.
-        bits: Image binary bytes.
+        image: Image binary bytes.
 
     Returns:
         An encoded message.
     """
-    size = len(filename).to_bytes(2, byteorder='big')
-    header = filename.encode('ascii')
-    message = size + header + bits
+    header = {'filename': filename, 'done': False}
+    header = json.dumps(header)
+    header = header.encode('ascii')
+    size = len(header).to_bytes(2, byteorder='big')
+    message = size + header + image
+    return message
+
+
+def encode_message_control(**kwargs):
+    header = json.dumps(kwargs)
+    header = header.encode('ascii')
+    size = len(header).to_bytes(2, byteorder='big')
+    message = size + header
     return message
 
 
@@ -92,7 +112,8 @@ def grayscale(frame):
 if __name__ == '__main__':
     asyncio.get_event_loop().run_until_complete(
         framer(url=build_url(netloc='192.168.1.108', port=12314, path='/upload'),
-               video_path='./data/video.mp4',
-               output_path='./data/video-frames',
-               quality=55,
-               processor=grayscale))
+               video_path='data/video.mp4',
+               output_path='data/video-frames',
+               quality=95,
+               processor=grayscale,
+               frame_limit=0))
